@@ -38,11 +38,11 @@ app.post('/admin/signup', async (req,res)=>{
   const newAdmin=req.body;
   try {
     const collection = client.db('courseWebsite').collection('admins');
-    const result = await collection.insertOne(newAdmin);
+    const admins = await collection.insertOne(newAdmin);
 
-    res.status(200).send('Data inserted successfully');
+    res.status(200).send('Signed Up as Admin successfully');
   } catch (err) {
-    res.status(500).send('Failed to insert data');
+    res.status(500).send('Failed to sign up!');
   }
 })
 
@@ -51,9 +51,9 @@ app.post('/admin/login', async(req,res)=>{
 
   try {
     const collection = client.db('courseWebsite').collection('admins');
-    const data = await collection.find({}).toArray();
+    const admins = await collection.find({}).toArray();
     isLoggedIn= false;
-    data.forEach((admin) => {
+    admins.forEach((admin) => {
       if (admin.username === login.username && admin.password === login.password) {
         isLoggedIn = true;
       }
@@ -77,7 +77,7 @@ app.post('/admin/courses', async(req,res)=>{
   }
   try {
     const collection = client.db('courseWebsite').collection('courses');
-    const result = await collection.insertOne(newCourse);
+    const courses = await collection.insertOne(newCourse);
 
     res.status(200).send(newCourse);
   } catch (err) {
@@ -123,61 +123,63 @@ app.get('/admin/courses', async(req,res)=>{
 })
 
 //USER ROUTES
-app.post('/users/signup', (req,res)=>{
+app.post('/users/signup', async(req,res)=>{
   const newUser=req.body;
-  fs.readFile("users.json","utf-8",(err,data)=>{
-    const users=JSON.parse(data);
-    users.push(newUser);
+  try{
+    const collection = client.db('courseWebsite').collection('users');
+    const result = await collection.insertOne(newUser);
 
-    fs.writeFile("users.json", JSON.stringify(users), (err)=>{
-      if(err) throw err;
-      res.status(201).send('User Created Successfully!')
-    })
-  })
+    res.status(200).send('Signed Up successfully!')
+  }catch(err){
+    res.status(500).send('Failed to sign up!')
+  }
 })
 
-app.post('/users/login', (req,res)=>{
+app.post('/users/login', async(req,res)=>{
   const login= req.headers;
-  fs.readFile("users.json","utf-8",(err,data)=>{
-    if(err) throw err;
-    const users = JSON.parse(data);
-
-    for(let i=0; i<users.length; i++){
-      if(users[i].username === login.username && users[i].password === login.password)
-        res.send('Logged in successfully!')
+  
+    const collection= client.db('courseWebsite').collection('users');
+    const users= await collection.find({}).toArray();
+    isLoggedIn= false;
+    users.forEach((user)=>{
+      if(user.username==login.username && user.password== login.password)
+        isLoggedIn=true;
+    })
+    if(isLoggedIn){
+      res.send('Logged in Successfully!')
+    }else{
+      res.status(401).send('Invalid Credentials')
     }
-  })
+
 })
 
-app.get('/users/courses', (req,res)=>{
-  fs.readFile("courses.json","utf-8",(err,data)=>{
-    res.json(JSON.parse(data));
-  })
+app.get('/users/courses', async(req,res)=>{
+  const collection= client.db('courseWebsite').collection('courses')
+  const courses= await collection.find({}).toArray();
+  res.status(200).json(courses);
 })
 
-app.post('/users/courses/:courseID', (req,res)=>{
-  fs.readFile("courses.json","utf-8",(err,data)=>{
-    const courses=JSON.parse(data);
-    const courseIndex = findIndex(courses, parseInt(req.params.courseID));
-    if (courseIndex === -1) {
-      res.status(404).send();
-    } else {
-        fs.readFile("purchasedCourses.json","utf-8", (err,data)=>{
-          const purchased=JSON.parse(data);
-          purchased.push(courses[courseIndex]);
+app.post('/users/courses/:courseID', async(req,res)=>{
+  const courseID= parseInt(req.params.courseID);
+  const collection= client.db('courseWebsite').collection('courses');
+  
+  const filter = { courseID: courseID };
+  const course = await collection.findOne(filter);
 
-          fs.writeFile("purchasedCourses.json",JSON.stringify(purchased),(err)=>{
-            if(err) throw err;
-            res.status(201).send("Course Successfully Purchased!")
-          })  
-      })  
-    }
-  })
+  if(!course){
+    res.status(404).send('Course not found');
+    return;
+  }
+  const purchased= client.db('courseWebsite').collection('purchasedCourses');
+  const purchasedCourse= await purchased.insertOne(course);
+  res.status(200).send('Course purchased successfully!')
 })
-app.get('/users/purchasedCourses', (req,res)=>{
-  fs.readFile("purchasedCourses.json","utf-8",(err,data)=>{
-    res.send(JSON.parse(data));
-  })
+
+app.get('/users/purchasedCourses', async(req,res)=>{
+  const collection= client.db('courseWebsite').collection('purchasedCourses');
+  const purchasedCourses= await collection.find({}).toArray();
+
+  res.status(200).json(purchasedCourses);
 })
 
 app.listen(port, () => {
